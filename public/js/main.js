@@ -42,10 +42,16 @@ const PeerConnection = (function () {
 
     return {
         getInstance: () => {
-            if (!peerConnection) {
+            if (!peerConnection || peerConnection.signalingState === 'closed') {
                 peerConnection = createPeerConnection();
             }
             return peerConnection;
+        },
+        resetInstance: () => {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
         }
     }
 })();
@@ -135,12 +141,9 @@ const startCall = async (user) => {
 }
 
 const endCall = () => {
-    const pc = PeerConnection.getInstance();
-    if (pc) {
-        pc.close();
-        endCallBtn.style.display = 'none';
-    }
-}
+    PeerConnection.resetInstance();
+    endCallBtn.style.display = 'none';
+};
 
 // initialize app
 const startMyVideo = async () => {
