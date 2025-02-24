@@ -9,7 +9,7 @@ let localStream;
 let caller = [];
 
 // Single Method for peer connection
-const PeerConnection = (function(){
+const PeerConnection = (function () {
     let peerConnection;
 
     const createPeerConnection = () => {
@@ -27,12 +27,12 @@ const PeerConnection = (function(){
             peerConnection.addTrack(track, localStream);
         })
         // listen to remote stream and add to peer connection
-        peerConnection.ontrack = function(event) {
+        peerConnection.ontrack = function (event) {
             remoteVideo.srcObject = event.streams[0];
         }
         // listen for ice candidate
-        peerConnection.onicecandidate = function(event) {
-            if(event.candidate) {
+        peerConnection.onicecandidate = function (event) {
+            if (event.candidate) {
                 socket.emit("icecandidate", event.candidate);
             }
         }
@@ -42,17 +42,23 @@ const PeerConnection = (function(){
 
     return {
         getInstance: () => {
-            if(!peerConnection){
+            if (!peerConnection || peerConnection.signalingState === 'closed') {
                 peerConnection = createPeerConnection();
             }
             return peerConnection;
+        },
+        resetInstance: () => {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
         }
     }
 })();
 
 // handle browser events
 createUserBtn.addEventListener("click", (e) => {
-    if(username.value !== "") {
+    if (username.value !== "") {
         const usernameContainer = document.querySelector(".username-input");
         socket.emit("join-user", username.value);
         usernameContainer.style.display = 'none';
@@ -68,11 +74,11 @@ socket.on("joined", allusers => {
     const createUsersHtml = () => {
         allusersHtml.innerHTML = "";
 
-        for(const user in allusers) {
+        for (const user in allusers) {
             const li = document.createElement("li");
             li.textContent = `${user} ${user === username.value ? "(You)" : ""}`;
 
-            if(user !== username.value) {
+            if (user !== username.value) {
                 const button = document.createElement("button");
                 button.classList.add("call-btn");
                 button.addEventListener("click", (e) => {
@@ -94,21 +100,21 @@ socket.on("joined", allusers => {
     createUsersHtml();
 
 })
-socket.on("offer", async ({from, to, offer}) => {
+socket.on("offer", async ({ from, to, offer }) => {
     const pc = PeerConnection.getInstance();
     // set remote description
     await pc.setRemoteDescription(offer);
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
-    socket.emit("answer", {from, to, answer: pc.localDescription});
+    socket.emit("answer", { from, to, answer: pc.localDescription });
     caller = [from, to];
 });
-socket.on("answer", async ({from, to, answer}) => {
+socket.on("answer", async ({ from, to, answer }) => {
     const pc = PeerConnection.getInstance();
     await pc.setRemoteDescription(answer);
     // show end call button
     endCallBtn.style.display = 'block';
-    socket.emit("end-call", {from, to});
+    socket.emit("end-call", { from, to });
     caller = [from, to];
 });
 socket.on("icecandidate", async candidate => {
@@ -116,7 +122,7 @@ socket.on("icecandidate", async candidate => {
     const pc = PeerConnection.getInstance();
     await pc.addIceCandidate(new RTCIceCandidate(candidate));
 });
-socket.on("end-call", ({from, to}) => {
+socket.on("end-call", ({ from, to }) => {
     endCallBtn.style.display = "block";
 });
 socket.on("call-ended", (caller) => {
@@ -131,16 +137,13 @@ const startCall = async (user) => {
     const offer = await pc.createOffer();
     console.log({ offer })
     await pc.setLocalDescription(offer);
-    socket.emit("offer", {from: username.value, to: user, offer: pc.localDescription});
+    socket.emit("offer", { from: username.value, to: user, offer: pc.localDescription });
 }
 
 const endCall = () => {
-    const pc = PeerConnection.getInstance();
-    if(pc) {
-        pc.close();
-        endCallBtn.style.display = 'none';
-    }
-}
+    PeerConnection.resetInstance();
+    endCallBtn.style.display = 'none';
+};
 
 // initialize app
 const startMyVideo = async () => {
@@ -149,7 +152,7 @@ const startMyVideo = async () => {
         console.log({ stream });
         localStream = stream;
         localVideo.srcObject = stream;
-    } catch(error) {}
+    } catch (error) { }
 }
 
 startMyVideo();
